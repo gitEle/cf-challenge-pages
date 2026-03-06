@@ -37,7 +37,9 @@ export function turnstilePage(cfInfo: CFInfo, siteKey: string, verified = false,
         完成下方 Turnstile 验证后即可访问内容。大多数用户会立即自动通过。
       </div>
       <form method="POST" action="/resources/turnstile" id="turnstile-form">
-        <div id="turnstile-widget" style="margin-bottom:16px;"></div>
+        <div id="turnstile-widget" style="margin-bottom:16px;min-height:65px;">
+          <div style="color:#7c85a2;font-size:12px;padding:20px 0;">Turnstile 加载中...</div>
+        </div>
         <button type="submit" id="submit-btn"
           style="padding:10px 20px;background:rgba(139,92,246,0.8);border:none;border-radius:6px;color:#fff;font-size:13px;cursor:pointer;font-weight:500;width:100%;transition:opacity 0.2s;"
           disabled>
@@ -139,23 +141,50 @@ EXPIRES: <span class="val">${new Date(Date.now() + 3600000).toISOString()}</span
     </div>
 
     ${!verified ? `
-    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad&render=explicit" async defer></script>
     <script>
+      var submitBtn = null;
+
       window.onTurnstileLoad = function() {
+        submitBtn = document.getElementById('submit-btn');
+        var widget = document.getElementById('turnstile-widget');
+        if (widget) {
+          widget.innerHTML = '';
+        }
         turnstile.render('#turnstile-widget', {
           sitekey: '${siteKey}',
           theme: 'dark',
           callback: function(token) {
-            document.getElementById('submit-btn').disabled = false;
-            document.getElementById('submit-btn').style.opacity = '1';
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = '1';
+            submitBtn.textContent = '验证并访问内容';
+          },
+          'before-interactive-callback': function() {
+            submitBtn.textContent = '请完成上方验证...';
           },
           'expired-callback': function() {
-            document.getElementById('submit-btn').disabled = true;
-            document.getElementById('submit-btn').style.opacity = '0.5';
+            submitBtn.disabled = true;
+            submitBtn.style.opacity = '0.5';
+            submitBtn.textContent = '验证已过期，请重试';
+          },
+          'error-callback': function() {
+            submitBtn.disabled = true;
+            submitBtn.style.opacity = '0.5';
+            submitBtn.textContent = '验证出错，请刷新页面';
           }
         });
       };
+
+      document.getElementById('turnstile-form').addEventListener('submit', function() {
+        var btn = document.getElementById('submit-btn');
+        btn.disabled = true;
+        btn.style.opacity = '0.7';
+        btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:8px;justify-content:center;">'
+          + '<svg style="animation:spin 1s linear infinite" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>'
+          + '服务端验证中...</span>';
+      });
     </script>
+    <style>@keyframes spin { to { transform: rotate(360deg); } }</style>
     ` : ''}
   `;
 
