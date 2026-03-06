@@ -57,7 +57,8 @@ cf-challenge-pages/
 │   │   └── verify.ts            # Turnstile token 服务端验证
 │   └── static/
 │       └── fingerprint.ts       # 客户端指纹 JS（内联字符串，由 Worker 直接服务）
-├── wrangler.toml                # Wrangler 配置
+├── wrangler.toml                # Wrangler 配置（不含密钥）
+├── .dev.vars                    # 本地开发环境变量（不部署，已 gitignore）
 ├── tsconfig.json
 └── package.json
 ```
@@ -125,27 +126,47 @@ https://cf-challenge-pages.<your-subdomain>.workers.dev
 
 在 Cloudflare Dashboard → Workers & Pages → 你的 Worker → Settings → Triggers → Custom Domains 中添加域名。
 
-## 配置 Turnstile（生产环境）
+## 配置 Turnstile
 
-默认使用 Cloudflare 官方测试密钥（始终通过），仅用于本地开发和功能演示。
+### 本地开发
 
-生产环境替换步骤：
+本地开发使用 Cloudflare 官方测试密钥，Turnstile 验证始终通过，无需注册真实账号。测试密钥已配置在 `.dev.vars` 中，`wrangler dev` 自动读取，无需任何额外操作。
 
-1. 前往 [Cloudflare Dashboard](https://dash.cloudflare.com/) → Turnstile → 创建 Site
-2. 获取 **Site Key**（前端）和 **Secret Key**（后端）
-3. 更新 `wrangler.toml`：
-
-```toml
-[vars]
-TURNSTILE_SITE_KEY = "你的 Site Key"
+```ini
+# .dev.vars（仅本地生效，不会被部署，已加入 .gitignore）
+TURNSTILE_SITE_KEY=1x00000000000000000000AA
+TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
 ```
 
-4. Secret Key 不应明文写入配置文件，使用 Wrangler Secrets：
+### 生产环境
+
+生产环境的密钥通过 Wrangler Secrets 管理，加密存储，不写入代码仓库，也不会出现在 `wrangler.toml` 中。
+
+**第一步：在 Cloudflare Dashboard 创建 Turnstile Site**
+
+前往 [Cloudflare Dashboard](https://dash.cloudflare.com/) → Turnstile → Add Site，获取 **Site Key** 和 **Secret Key**。
+
+**第二步：设置 Secrets**
 
 ```bash
+npx wrangler secret put TURNSTILE_SITE_KEY
+# 按提示输入 Site Key
+
 npx wrangler secret put TURNSTILE_SECRET_KEY
 # 按提示输入 Secret Key
 ```
+
+Secret 设置一次永久生效，后续 `npm run deploy` 不会覆盖，无需重复设置。
+
+**变量优先级说明**
+
+| 来源 | 本地 `wrangler dev` | 生产部署 |
+|---|---|---|
+| `.dev.vars` | 生效 | 不部署 |
+| `wrangler.toml [vars]` | 生效 | 随代码部署（明文） |
+| `wrangler secret put` | 不生效 | 生效（加密） |
+
+> 因此本项目将两套密钥完全分离：本地用 `.dev.vars` 测试密钥，生产用 Secrets 真实密钥，互不干扰。
 
 ## 配置 WAF 规则（触发真实 Challenge）
 
@@ -185,9 +206,9 @@ Action:     JS Challenge
 
 ## 环境变量
 
-| 变量 | 说明 | 默认值（测试用） |
-|---|---|---|
-| `TURNSTILE_SITE_KEY` | Turnstile 前端 Site Key | `1x00000000000000000000AA` |
-| `TURNSTILE_SECRET_KEY` | Turnstile 后端 Secret Key | `1x0000000000000000000000000000000AA` |
+| 变量 | 说明 | 本地（`.dev.vars`） | 生产（Secrets） |
+|---|---|---|---|
+| `TURNSTILE_SITE_KEY` | Turnstile 前端 Site Key | 测试 key（始终通过） | 真实 Site Key |
+| `TURNSTILE_SECRET_KEY` | Turnstile 后端 Secret Key | 测试 key（始终通过） | 真实 Secret Key |
 
-测试密钥由 Cloudflare 官方提供，始终返回验证通过，不适用于生产环境。
+测试密钥由 Cloudflare 官方提供，不适用于生产环境。
