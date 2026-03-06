@@ -32,8 +32,35 @@ export default {
 
     // HTML pages
     const cfInfo = parseCFHeaders(request);
+
+    // Content Security Policy
+    // - script-src: allow self + Turnstile SDK from challenges.cloudflare.com
+    // - frame-src: Turnstile widget renders inside a CF-hosted iframe
+    // - connect-src: allow fetch to /api/fingerprint (same-origin)
+    // - style-src: unsafe-inline needed for inline styles in layout
+    // - img-src: data: needed for canvas fingerprint (toDataURL)
+    const CSP = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://static.cloudflareinsights.com",
+      "style-src 'self' 'unsafe-inline'",
+      "frame-src https://challenges.cloudflare.com",
+      "connect-src 'self' https://cloudflareinsights.com",
+      "img-src 'self' data:",
+      "font-src 'self'",
+      "object-src 'none'",
+      "base-uri 'self'",
+    ].join('; ');
+
     const html = (body: string) =>
-      new Response(body, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+      new Response(body, {
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Content-Security-Policy': CSP,
+          'X-Content-Type-Options': 'nosniff',
+          'X-Frame-Options': 'DENY',
+          'Referrer-Policy': 'strict-origin-when-cross-origin',
+        },
+      });
 
     if (path === '/' || path === '') {
       return html(homePage(cfInfo));
