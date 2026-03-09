@@ -37,8 +37,14 @@ export function turnstilePage(cfInfo: CFInfo, siteKey: string, verified = false,
         完成下方 Turnstile 验证后即可访问内容。大多数用户会立即自动通过。
       </div>
       <form method="POST" action="/resources/turnstile" id="turnstile-form">
-        <div id="turnstile-widget" style="margin-bottom:16px;min-height:65px;">
-          <div style="color:#7c85a2;font-size:12px;padding:20px 0;">Turnstile 加载中...</div>
+        <div class="cf-turnstile"
+          data-sitekey="${siteKey}"
+          data-theme="dark"
+          data-size="flexible"
+          data-callback="onTurnstileSuccess"
+          data-expired-callback="onTurnstileExpired"
+          data-error-callback="onTurnstileError"
+          style="margin-bottom:16px;">
         </div>
         <button type="submit" id="submit-btn"
           style="padding:10px 20px;background:rgba(139,92,246,0.8);border:none;border-radius:6px;color:#fff;font-size:13px;cursor:pointer;font-weight:500;width:100%;transition:opacity 0.2s;"
@@ -141,39 +147,28 @@ EXPIRES: <span class="val">${new Date(Date.now() + 3600000).toISOString()}</span
     </div>
 
     ${!verified ? `
-    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad&render=explicit" async defer></script>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
     <script>
-      var submitBtn = null;
+      function onTurnstileSuccess(token) {
+        var btn = document.getElementById('submit-btn');
+        btn.disabled = false;
+        btn.style.opacity = '1';
+        btn.textContent = '验证并访问内容';
+      }
 
-      window.onTurnstileLoad = function() {
-        submitBtn = document.getElementById('submit-btn');
-        var widget = document.getElementById('turnstile-widget');
-        if (widget) {
-          widget.innerHTML = '';
-        }
-        turnstile.render('#turnstile-widget', {
-          sitekey: '${siteKey}',
-          theme: 'dark',
-          callback: function(token) {
-            submitBtn.disabled = false;
-            submitBtn.style.opacity = '1';
-            submitBtn.textContent = '验证并访问内容';
-          },
-          'before-interactive-callback': function() {
-            submitBtn.textContent = '请完成上方验证...';
-          },
-          'expired-callback': function() {
-            submitBtn.disabled = true;
-            submitBtn.style.opacity = '0.5';
-            submitBtn.textContent = '验证已过期，请重试';
-          },
-          'error-callback': function() {
-            submitBtn.disabled = true;
-            submitBtn.style.opacity = '0.5';
-            submitBtn.textContent = '验证出错，请刷新页面';
-          }
-        });
-      };
+      function onTurnstileExpired() {
+        var btn = document.getElementById('submit-btn');
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+        btn.textContent = '验证已过期，请重试';
+      }
+
+      function onTurnstileError() {
+        var btn = document.getElementById('submit-btn');
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+        btn.textContent = '验证出错，请刷新页面';
+      }
 
       document.getElementById('turnstile-form').addEventListener('submit', function() {
         var btn = document.getElementById('submit-btn');
@@ -188,12 +183,5 @@ EXPIRES: <span class="val">${new Date(Date.now() + 3600000).toISOString()}</span
     ` : ''}
   `;
 
-  const extraHead = !verified
-    ? `<script>
-    // Turnstile callback hook
-    window.turnstileCallbacks = [];
-    </script>`
-    : '';
-
-  return renderLayout('/resources/turnstile', 'Turnstile', content, cfInfo, extraHead);
+  return renderLayout('/resources/turnstile', 'Turnstile', content, cfInfo);
 }
